@@ -1,6 +1,6 @@
 # Experiments for PG-ZOO algorithms
 
-Code (in Python 3) for the paper [On the Convergence of Prior-Guided Zeroth-Order Optimization Algorithms](link).
+Code (in Python 3) for the paper [On the Convergence of Prior-Guided Zeroth-Order Optimization Algorithms](https://arxiv.org/abs/2107.10110).
 
 ## Numerical benchmarks
 The `numerical_benchmarks` folder contains the code for experiments in Section 5.1 in the paper. The code is tested under `numpy==1.18.0, matplotlib==3.1.2`.
