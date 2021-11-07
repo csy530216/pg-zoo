@@ -8,8 +8,8 @@ names = {
     'rgf': 'RGF',
     'prgf': 'PRGF',
     'ars': 'ARS',
-    'wrong_pars': 'PARS-Naive',
-    'x_pars_multi': 'PARS'
+    'naive_pars': 'PARS-Naive',
+    'pars': 'PARS'
 }
 
 for f_type in ['orig', 'quad', 'valley']:
@@ -20,7 +20,7 @@ for f_type in ['orig', 'quad', 'valley']:
     elif f_type == 'valley':
         length = 500
     plt.figure()
-    for optim_type in ['rgf', 'prgf', 'ars', 'wrong_pars', 'x_pars_multi']:
+    for optim_type in ['rgf', 'prgf', 'ars', 'naive_pars', 'pars']:
         log_errs_list = []
         for ite in range(5):
             log_errs_list.append(np.log10(np.load('exp_pert/{}_{}_{}.npy'.format(f_type, optim_type, ite))[:length]))

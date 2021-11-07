@@ -36,9 +36,9 @@ class Model:
     def __init__(self, device):
         self.device = device
         self.model = Net().to(device)
-        self.model.load_state_dict(torch.load('mnist_cnn.pt'))
+        self.model.load_state_dict(torch.load('mnist_cnn.pt', map_location=device))
         self.model.eval()
-    
+
     def get_loss_and_grad(self, image, label, targeted=True, get_grad=True):
         image = image.clone()
         if get_grad:
@@ -68,9 +68,12 @@ class Model:
 
 
 # Training settings
-parser = argparse.ArgumentParser(description='PyTorch MNIST Example')
+parser = argparse.ArgumentParser(description='RGF and History-PRGF attack on MNIST')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='disables CUDA training')
+parser.add_argument('--prior', action='store_true', default=False,
+                    help='use History-PRGF instead of RGF')
+parser.add_argument('--lr', type=float, default=0.2)
 args = parser.parse_args()
 use_cuda = not args.no_cuda and torch.cuda.is_available()
 
@@ -81,24 +84,22 @@ if use_cuda:
     test_kwargs.update({'num_workers': 1,
                         'pin_memory': True})
 
-dataset2 = datasets.MNIST('data', train=False, transform=transforms.ToTensor())
-test_loader = torch.utils.data.DataLoader(dataset2, shuffle=False, **test_kwargs)
+dataset = datasets.MNIST('data', download=True, train=False, transform=transforms.ToTensor())
+test_loader = torch.utils.data.DataLoader(dataset, shuffle=False, **test_kwargs)
 
 model = Model(device)
 
-method = 'rgf' # 'rgf'
-lr = 0.2
-epsilon = 28*32/255
+d = 28 * 28
+method = 'prgf' if args.prior else 'rgf'
+lr = args.lr
+epsilon = np.sqrt(d)*32/255
 q = 20
 sigma = 1e-4
 queries_list = []
-line_search = False
 
 for i, (data, target) in enumerate(test_loader):
     if i >= 500:
         break
-    #if i != 17:
-    #    continue
     print("Image", i)
     ite = 0
     true_label = target.numpy().squeeze()
@@ -116,23 +117,19 @@ for i, (data, target) in enumerate(test_loader):
         while loss <= 0 and ite < 20:
             angle = 0
             actual_ite = 0
-            for _ in range(28 * 28 // q):
+            for _ in range(d // q):
                 target_label = (true_label + 1) % 10
                 loss, grad = model.get_loss_and_grad(current_image, target_label, targeted=True, get_grad=True)
-                if not line_search:
-                    queries += 1
-                    if queries % (28 * 28) == 0:
-                        print(loss, norm_delta.cpu().numpy() / epsilon)
                 if loss > 0:
                     break
 
                 us = []
                 for _ in range(q):
-                    us.append(torch.randn_like(grad))
+                    us.append(torch.randn_like(current_image))
                 if method == 'prgf':
                     us.append(v)
 
-                # Schmidt
+                # Gram-Schmidt. You can also call torch.linalg.qr to perform orthogonalization
                 orthos = []
                 for u in us:
                     for ou in orthos:
@@ -146,52 +143,16 @@ for i, (data, target) in enumerate(test_loader):
                 images = torch.cat(images)
                 losses = model.get_loss_and_grad(images, target_label, targeted=True, get_grad=False)
 
-                v = 0
+                g = 0
                 for u, l in zip(orthos, losses):
-                    v = v + u * (l - loss) / sigma
-                for _ in range(len(orthos)):
+                    g = g + u * (l - loss) / sigma
+                for _ in range(len(orthos) + 1):
                     queries += 1
-                    if queries % (28 * 28) == 0:
+                    if queries % d == 0:
                         print(loss, norm_delta.cpu().numpy() / epsilon)
-                '''
-                if method == 'prgf':
-                    u = torch.randn_like(grad)
-                    v = v / torch.sqrt(torch.sum(v * v))
-                    u = u - v * torch.sum(u * v)
-                    u = u / torch.sqrt(torch.sum(u * u))
-                    v = u * torch.sum(u * grad) + v * torch.sum(v * grad)
-                    v = v / torch.sqrt(torch.sum(v * v))
-                elif method == 'rgf':
-                    v = torch.randn_like(current_image)
-                    v = v / torch.sqrt(torch.sum(v * v))
-                '''
                 old_image = current_image
-                # new_image = current_image + lr * v * torch.sum(v * grad) # lr * grad
-                if line_search:
-                    max_value = -10000
-                    for try_step in [lr, lr * 2, lr * 4, lr * 8]:#, lr * 16, lr * 32]:
-                        new_image = current_image + try_step * v
-                        delta = new_image - original_image
-                        norm_delta = torch.sqrt(torch.sum(delta * delta))
-                        if norm_delta >= epsilon:
-                            delta = delta / norm_delta * epsilon
-                            test_image = original_image + delta
-                        else:
-                            test_image = new_image
-                        test_image = torch.clamp(test_image, 0, 1)
-                        step_loss = model.get_loss_and_grad(test_image, target_label, targeted=True, get_grad=False)
-                        queries += 1
-                        if queries % (28 * 28) == 0:
-                            print(loss, norm_delta.cpu().numpy() / epsilon)
-                        if step_loss > max_value:
-                            max_value = step_loss
-                            step = try_step
-                        else:
-                            break
-                else:
-                    step = lr
-                new_image = current_image + step * v
-                angle += torch.sum(v / torch.sqrt(torch.sum(v*v)) * grad / torch.sqrt(torch.sum(grad*grad))).item() ** 2
+                new_image = current_image + lr * g
+                angle += torch.sum(g / torch.sqrt(torch.sum(g*g)) * grad / torch.sqrt(torch.sum(grad*grad))).item() ** 2
                 actual_ite += 1
                 delta = new_image - original_image
                 norm_delta = torch.sqrt(torch.sum(delta * delta))
@@ -209,4 +170,4 @@ for i, (data, target) in enumerate(test_loader):
         queries_list.append(queries)
 
 print('Median queries', np.median(queries_list))
-print(method, lr, line_search)
+print(method, lr)

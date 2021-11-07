@@ -136,8 +136,8 @@ class RGF:
         for u in us:
             derivative_rand = (f(x + mu * u) - f(x)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(x + mu * prior) - f(x)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(x + mu * prior) - f(x)) / mu
+        g_mu = g_rand + prior * derivative_prior
         norm_g_mu = np.linalg.norm(g_mu)
         if norm_g_mu == 0:
             g_mu = np.random.normal(size=n)
@@ -197,9 +197,9 @@ class PRGF:
         for u in us:
             derivative_rand = (f(x + mu * u) - f(x)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(x + mu * prior) - f(x)) / mu
+        derivative_prior = (f(x + mu * prior) - f(x)) / mu
         self.prior_sim.update(np.dot(prior, grad_x))
-        g_mu = g_rand + prior * derivative_old
+        g_mu = g_rand + prior * derivative_prior
         norm_g_mu = np.linalg.norm(g_mu)
         if norm_g_mu == 0:
             g_mu = np.random.normal(size=n)
@@ -222,7 +222,7 @@ class PRGF:
         return "Similarity: {:.4f} g similarity: {:.4f} Prior similarity: {:.4f} Prior old similarity: {:.4f} d: {:.4f}".format(self.post_sim.avg, self.g_sim.avg, self.prior_sim.avg, self.prior_old_sim.avg, self.prior_sim.avg / self.prior_old_sim.avg)
 
 
-class NAG:
+class ARS:
     def __init__(self, L, v_ini, q=1, tau=0):
         self.L = L
         self.ini_gamma = L
@@ -256,8 +256,8 @@ class NAG:
         for u in us:
             derivative_rand = (f(y + mu * u) - f(y)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(y + mu * prior) - f(y)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(y + mu * prior) - f(y)) / mu
+        g_mu = g_rand + prior * derivative_prior
         self.post_sim.update(np.dot(normalize(grad(y)), normalize(g_mu)))
         g1 = g_mu
         g2 = n / (self.q + 1) * g_mu
@@ -284,7 +284,7 @@ class NAG:
         print("Restarted")
 
 
-class NAGPRGFNewNew:
+class PARS:
     def __init__(self, L, v_ini, q=1, tau=0):
         self.L = L
         self.ini_gamma = L
@@ -323,19 +323,19 @@ class NAGPRGFNewNew:
             derivative_rand = (f(y + mu * u) - f(y)) / mu
             drs.append(derivative_rand)
             g_rand += u * derivative_rand
-        derivative_old = (f(y + mu * prior) - f(y)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(y + mu * prior) - f(y)) / mu
+        g_mu = g_rand + prior * derivative_prior
 
         self.post_sim.update(np.dot(normalize(grad(y)), normalize(g_mu)))
         g1 = g_mu
         self.g_mu = g_mu
 
         norm_term = np.mean(np.square(drs))
-        est_norm2 = norm_term * (n - 1) + derivative_old ** 2
-        alpha2 = derivative_old ** 2 / est_norm2
-        self.adaptive_theta = (alpha2 + self.q / (n - 1) * (1 - alpha2)) / self.L / (alpha2 + (n - 1) / self.q * (1 - alpha2))
+        est_norm2 = norm_term * (n - 1) + derivative_prior ** 2
+        Dt = derivative_prior ** 2 / est_norm2
+        self.adaptive_theta = (Dt + self.q / (n - 1) * (1 - Dt)) / self.L / (Dt + (n - 1) / self.q * (1 - Dt))
 
-        g_prior = prior * derivative_old
+        g_prior = prior * derivative_prior
         g2 = (n - 1) / self.q * g_rand + g_prior
 
         lmda = alpha / self.gamma * self.tau
@@ -396,19 +396,19 @@ for ite in range(5):
                 optim = PRGF(lr=1 / L1, lag=1, q=q)
             elif optim_type == 'ars':
                 L1 *= 1
-                optim = NAG(L=L1, v_ini=x, q=q)
+                optim = ARS(L=L1, v_ini=x, q=q)
             elif optim_type == 'ars-lr25':
                 L1 *= 25
-                optim = NAG(L=L1, v_ini=x, q=q)
+                optim = ARS(L=L1, v_ini=x, q=q)
             elif optim_type == 'pars':
                 L1 *= 1
-                optim = NAGPRGFNewNew(L=L1, v_ini=x, q=q)
+                optim = PARS(L=L1, v_ini=x, q=q)
             elif optim_type == 'pars-lr25':
                 L1 *= 25
-                optim = NAGPRGFNewNew(L=L1, v_ini=x, q=q)
+                optim = PARS(L=L1, v_ini=x, q=q)
             elif optim_type == 'pars-lr50':
                 L1 *= 50
-                optim = NAGPRGFNewNew(L=L1, v_ini=x, q=q)
+                optim = PARS(L=L1, v_ini=x, q=q)
             else:
                 raise Exception
 

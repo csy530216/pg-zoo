@@ -1,3 +1,6 @@
 __pycache__
 *.pyc
 .vscode
+adversarial_attacks/data
+numerical_benchmarks/exp_pert
+numerical_benchmarks/exp

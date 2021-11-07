@@ -1,9 +1,13 @@
 # Experiments for PG-ZOO algorithms
 
-Code (in Python 3) for the paper [On the Convergence of Prior-Guided Zeroth-Order Optimization Algorithms](https://arxiv.org/abs/2107.10110).
+Code (in Python 3) for the paper [On the Convergence of Prior-Guided
+Zeroth-Order Optimization Algorithms](https://arxiv.org/abs/2107.10110) to be
+appeared in NeurIPS 2021.
 
 ## Numerical benchmarks
-The `numerical_benchmarks` folder contains the code for experiments in Section 5.1 in the paper. The code is tested under `numpy==1.18.0, matplotlib==3.1.2`.
+The `numerical_benchmarks` folder contains the code for experiments in Section
+5.1 in the paper. The code is tested under `numpy==1.18.0, matplotlib==3.1.2`
+with Python 3.7.
 
 ### Reproducing Figure 1
 Please run the following commands:
@@ -23,8 +27,25 @@ python plot_exp.py
 ```
 
 ## Black-box adversarial attacks
-The `adversarial_attacks` folder contains the code for experiments in Section 5.2 in the paper. The code is tested under `torch==1.3.0, torchvision==0.4.1, numpy==1.17.3`.
+The `adversarial_attacks` folder contains the code for experiments in Section
+5.2 in the paper. The code is tested under `torch==1.3.0, torchvision==0.4.1,
+numpy==1.17.3` with Python 3.7.
 
-To reproduce the results in Table 1, run the corresponding script `{METHOD}{LEARNING_RATE}.py`.
+To reproduce the results in Table 1, for RGF methods, run
+```bash
+python rgf.py --lr {LEARNING_RATE}
+```
+For History-PRGF methods, run
+```bash
+python rgf.py --lr {LEARNING_RATE} --prior
+```
+For ARS methods, run
+```bash
+python ars.py --lr {LEARNING_RATE}
+```
+For History-PARS methods, run
+```bash
+python ars.py --lr {LEARNING_RATE} --prior
+```
 
 The model 'mnist_cnn.pt' is obtained from `train.py`.

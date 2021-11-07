@@ -129,8 +129,8 @@ class RGF:
         for u in us:
             derivative_rand = (f(x + mu * u) - f(x)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(x + mu * prior) - f(x)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(x + mu * prior) - f(x)) / mu
+        g_mu = g_rand + prior * derivative_prior
         norm_g_mu = np.linalg.norm(g_mu)
         if norm_g_mu == 0:
             g_mu = np.random.normal(size=n)
@@ -172,8 +172,8 @@ class PRGFPrior:
         for u in us:
             derivative_rand = (f(x + mu * u) - f(x)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(x + mu * prior) - f(x)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(x + mu * prior) - f(x)) / mu
+        g_mu = g_rand + prior * derivative_prior
         norm_g_mu = np.linalg.norm(g_mu)
         if norm_g_mu == 0:
             g_mu = np.random.normal(size=n)
@@ -188,7 +188,7 @@ class PRGFPrior:
     def statistics(self):
         return "Similarity: {:.4f}".format(self.post_sim.avg)
 
-class NAG:
+class ARS:
     def __init__(self, L, v_ini, q=1, tau=0):
         self.svrg = False
         self.L = L
@@ -221,8 +221,8 @@ class NAG:
         for u in us:
             derivative_rand = (f(y + mu * u) - f(y)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(y + mu * prior) - f(y)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(y + mu * prior) - f(y)) / mu
+        g_mu = g_rand + prior * derivative_prior
         self.post_sim.update(np.dot(normalize(grad(y)), normalize(g_mu)))
         g1 = g_mu
         g2 = n / (self.q + 1) * g_mu
@@ -238,7 +238,7 @@ class NAG:
         return "Similarity: {:.4f}".format(self.post_sim.avg)
 
 
-class NAGPrior:
+class NaivePARSPrior:
     def __init__(self, L, v_ini, q=1, tau=0):
         self.svrg = False
         self.L = L
@@ -271,8 +271,8 @@ class NAGPrior:
         for u in us:
             derivative_rand = (f(y + mu * u) - f(y)) / mu
             g_rand += u * derivative_rand
-        derivative_old = (f(y + mu * prior) - f(y)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(y + mu * prior) - f(y)) / mu
+        g_mu = g_rand + prior * derivative_prior
         self.post_sim.update(np.dot(normalize(grad(y)), normalize(g_mu)))
         g1 = g_mu
         g2 = n / (self.q + 1) * g_mu
@@ -288,7 +288,7 @@ class NAGPrior:
         return "Similarity: {:.4f}".format(self.post_sim.avg)
 
 
-class NAGPRGFNewNewPriorXMulti:
+class PARSPrior:
     def __init__(self, L, v_ini, q=1, tau=0):
         self.svrg = False
         self.L = L
@@ -304,10 +304,10 @@ class NAGPRGFNewNewPriorXMulti:
     def return_update(self, x, prior):
         # Compute try theta
         derivative_x = (f(x + mu * normalize(prior)) - f(x)) / mu
-        alpha2 = derivative_x ** 2 / self.mean_grad_norm2
-        if alpha2 >= 0.6:
-            alpha2 = 0.6
-        theta = (alpha2 + self.q / (n - 1) * (1 - alpha2)) / self.L / (alpha2 + (n - 1) / self.q * (1 - alpha2))
+        Dt = derivative_x ** 2 / self.mean_grad_norm2
+        if Dt >= 0.6:
+            Dt = 0.6
+        theta = (Dt + self.q / (n - 1) * (1 - Dt)) / self.L / (Dt + (n - 1) / self.q * (1 - Dt))
 
         k = theta * (self.gamma - self.tau)
         alpha = (-k + np.sqrt(k * k + 4 * theta * self.gamma)) / 2
@@ -315,10 +315,10 @@ class NAGPRGFNewNewPriorXMulti:
         y_try = (1 - beta) * x + beta * self.v
 
         derivative_x = (f(y_try + mu * normalize(prior)) - f(y_try)) / mu
-        alpha2 = derivative_x ** 2 / self.mean_grad_norm2
-        if alpha2 >= 0.6:
-            alpha2 = 0.6
-        theta = (alpha2 + self.q / (n - 1) * (1 - alpha2)) / self.L / (alpha2 + (n - 1) / self.q * (1 - alpha2))
+        Dt = derivative_x ** 2 / self.mean_grad_norm2
+        if Dt >= 0.6:
+            Dt = 0.6
+        theta = (Dt + self.q / (n - 1) * (1 - Dt)) / self.L / (Dt + (n - 1) / self.q * (1 - Dt))
 
         k = theta * (self.gamma - self.tau)
         alpha = (-k + np.sqrt(k * k + 4 * theta * self.gamma)) / 2
@@ -342,20 +342,22 @@ class NAGPRGFNewNewPriorXMulti:
             derivative_rand = (f(y + mu * u) - f(y)) / mu
             drs.append(derivative_rand)
             g_rand += u * derivative_rand
-        derivative_old = (f(y + mu * prior) - f(y)) / mu
-        g_mu = g_rand + prior * derivative_old
+        derivative_prior = (f(y + mu * prior) - f(y)) / mu
+        g_mu = g_rand + prior * derivative_prior
 
         self.post_sim.update(np.dot(normalize(grad(y)), normalize(g_mu)))
         g1 = g_mu
 
         norm_term = np.mean(np.square(drs))
-        est_norm = norm_term * (n - 1) + derivative_old ** 2
+        est_norm = norm_term * (n - 1) + derivative_prior ** 2
 
         self.grad_norm2s.append(est_norm)
         self.grad_norm2s = self.grad_norm2s[-10:]
         self.mean_grad_norm2 = np.mean(self.grad_norm2s)
+        # The averaging trick could be omitted: we can directly set
+        # ``self.mean_grad_norm2 = est_norm`` here
 
-        g_prior = prior * derivative_old
+        g_prior = prior * derivative_prior
         g2 = (n - 1) / self.q * g_rand + g_prior
 
         lmda = alpha / self.gamma * self.tau
@@ -370,9 +372,7 @@ class NAGPRGFNewNewPriorXMulti:
 
 
 f_types = ['valley', 'quad', 'orig']
-# f_types = ['orig']
-optim_types = ['rgf', 'prgf', 'ars', 'wrong_pars', 'x_pars_multi']
-# optim_types = ['x_pars_multi']
+optim_types = ['rgf', 'prgf', 'ars', 'naive_pars', 'pars']
 
 for ite in range(5):
     for f_type in f_types:
@@ -397,15 +397,16 @@ for ite in range(5):
                 elif optim_type == 'prgf':
                     optim = PRGFPrior(lr=1 / L1, q=q)
                 elif optim_type == 'ars':
-                    optim = NAG(L=L1, v_ini=x, q=q, tau=tau)
-                elif optim_type == 'wrong_pars':
-                    optim = NAGPrior(L=L1, v_ini=x, q=q, tau=tau)
-                elif optim_type == 'x_pars_multi':
-                    optim = NAGPRGFNewNewPriorXMulti(L=L1, v_ini=x, q=q, tau=tau)
+                    optim = ARS(L=L1, v_ini=x, q=q, tau=tau)
+                elif optim_type == 'naive_pars':
+                    optim = NaivePARSPrior(L=L1, v_ini=x, q=q, tau=tau)
+                elif optim_type == 'pars':
+                    optim = PARSPrior(L=L1, v_ini=x, q=q, tau=tau)
                 else:
                     raise Exception
             elif f_type == 'valley':
                 q = 10
+                # Following values of L1 are tuned
                 if optim_type == 'rgf':
                     L1 = 150
                     optim = RGF(lr=1 / L1, q=q)
@@ -414,13 +415,13 @@ for ite in range(5):
                     optim = PRGFPrior(lr=1 / L1, q=q)
                 elif optim_type == 'ars':
                     L1 = 600
-                    optim = NAG(L=L1, v_ini=x, q=q, tau=tau)
-                elif optim_type == 'wrong_pars':
+                    optim = ARS(L=L1, v_ini=x, q=q, tau=tau)
+                elif optim_type == 'naive_pars':
                     L1 = 600
-                    optim = NAGPrior(L=L1, v_ini=x, q=q, tau=tau)
-                elif optim_type == 'x_pars_multi':
+                    optim = NaivePARSPrior(L=L1, v_ini=x, q=q, tau=tau)
+                elif optim_type == 'pars':
                     L1 = 1000
-                    optim = NAGPRGFNewNewPriorXMulti(L=L1, v_ini=x, q=q, tau=tau)
+                    optim = PARSPrior(L=L1, v_ini=x, q=q, tau=tau)
                 else:
                     raise Exception
             else:
